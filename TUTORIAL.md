@@ -59,10 +59,21 @@ Take a look at the <walkthrough-editor-open-file filePath="tf/provision/main.tf"
 
 To provision the lab sample Apigee instance, run these commands now.
 
+### Provision global control plane with default VPC
+
 ```sh
 cd tf/provision
 terraform init
 terraform apply -var "project_id=$GOOGLE_CLOUD_PROJECT" -var "region=$GOOGLE_CLOUD_LOCATION" --var "apigee_type=$APIGEE_TYPE"
+cd ../..
+```
+
+### Provision regional EU control plane with custom VPC / subnet
+
+```sh
+cd tf/provision-drz
+terraform init
+terraform apply -var "project_id=$GOOGLE_CLOUD_PROJECT" -var "region=$GOOGLE_CLOUD_LOCATION" --var "apigee_type=$APIGEE_TYPE" --var "network=YOUR_NETWORK" --var "subnet=YOUR_SUBNET"
 cd ../..
 ```
 

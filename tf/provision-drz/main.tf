@@ -16,6 +16,12 @@ variable "network" {
   default     = ""
 }
 
+variable "subnet" {
+  description = "VPC subnetwork name, default is created if empty."
+  type        = string
+  default     = null
+}
+
 variable "apigee_type" {
   description = "The Apigee billing type, either PAYG or SUBSCRIPTION."
   type        = string
@@ -37,6 +43,12 @@ locals {
     length(google_compute_network.auto_vpc) > 0
     ? google_compute_network.auto_vpc[0].id
     : data.google_compute_network.existing_network[0].id
+  )
+
+  subnet_id = (
+    length(google_compute_network.auto_vpc) == 0
+    ? data.google_compute_subnetwork.existing_subnet[0].id
+    : null
   )
 }
 
@@ -64,6 +76,14 @@ resource "google_compute_network" "auto_vpc" {
 data "google_compute_network" "existing_network" {
   count      = (var.network != "") ? 1 : 0
   name       = var.network
+  depends_on = [google_project_service.enabled_apis]
+}
+
+data "google_compute_subnetwork" "existing_subnet" {
+  count      = (var.subnet != null) ? 1 : 0
+  name       = var.subnet
+  project    = var.project_id
+  region     = var.region
   depends_on = [google_project_service.enabled_apis]
 }
 
@@ -107,6 +127,7 @@ resource "google_compute_region_network_endpoint_group" "apigee_psc_neg" {
   network_endpoint_type = "PRIVATE_SERVICE_CONNECT"
   psc_target_service    = google_apigee_instance.apigee.service_attachment
   network               = local.network_id
+  subnetwork            = local.subnet_id
 }
 
 resource "google_compute_backend_service" "apigee_backend" {
