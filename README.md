@@ -1,7 +1,7 @@
 # Apigee AI Gateway Lab
 This lab guides you through deploying an Apigee AI Gateway into a Google Cloud project, and applying AI proxies and policies to manage, govern and secure the complete AI communication, from models to tools and agents.
 
-![AI Gateway Overview](https://iili.io/Bm9UcAX.png)
+![AI Gateway Overview](https://iili.io/Bm9iRKG.png)
 
 ## Lab targets
 * Simple deployment of Apigee + AI proxy templates in a GCP project with **battle-tested, simple terraform**.
