@@ -1,22 +1,22 @@
-name: AI-Gemini
+name: AI-Proxy-Claude
 type: template
-description: API template for AI-Gemini
+description: API template for AI-Proxy-Claude
 features:
-  - AI-Proxy-AgentPlatform.yaml
+  - AI-Model-Governance.yaml
   - AI-Auth.yaml
 parameters:
   - name: ModelBasePath
     paths:
       - $.endpoints[:1].basePath
     description: The base path to offer the AI proxy on.
-    default: /gemini
+    default: /claude
     examples:
       - /gemini
       - /llm
   - name: AllowedModelPatterns
     displayName: AllowedModelPatterns
     description: Configuration input for AllowedModelPatterns
-    default: gemini
+    default: claude
     examples:
       - google
       - anthropic

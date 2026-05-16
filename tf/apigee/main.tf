@@ -6,7 +6,7 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP region for the Apigee runtime & analytics data (see https://cloud.google.com/apigee/docs/api-platform/get-started/install-cli)."
+  description = "GCP region for the Apigee runtime & analytics data."
   type        = string
 }
 
@@ -32,6 +32,11 @@ variable "apigee_type" {
   description = "The Apigee billing type, either EVALUATION, PAYG or SUBSCRIPTION."
   type        = string
   default     = "EVALUATION"
+
+  validation {
+    condition     = !((var.drz_location != null && var.drz_location != "") && var.apigee_type == "EVALUATION")
+    error_message = "Apigee EVALUATION type cannot be used when a DRZ location (drz_location) is specified. Please use PAYG or SUBSCRIPTION instead."
+  }
 }
 
 locals {

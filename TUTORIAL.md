@@ -55,82 +55,56 @@ Set your values, save the file, and then run the `source .env`.
 source .env
 ```
 
+### Install tooling
+This lab uses two open source CLIs to automate Apigee, [apigeecli](https://github.com/apigee/apigeecli) and [aft](https://github.com/apigee/apigee-templater).
+
+If not already installed, install them into your shell.
+
+```sh
+curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
+
+npm i apigee-templater -g
+```
+
 ---
 
 ## Provision Apigee
 
 You can provision your Apigee instance in any of the ways documented [here](https://docs.cloud.google.com/apigee/docs/api-platform/get-started/provisioning-options).
 
+If you already have Apigee provisioned, then you can skip this step.
+
 For a simple automated deployment, we can run the sample Terraform deployment in this lab, which also creates a load balancer and test certificate to access the instance.
 
-Take a look at the <walkthrough-editor-open-file filePath="tf/provision/main.tf">main.tf</walkthrough-editor-open-file> file to see the resources created.
+Take a look at the <walkthrough-editor-open-file filePath="tf/apigee/main.tf">main.tf</walkthrough-editor-open-file> file to see the resources created.
 
 To provision the lab sample Apigee instance, run these commands now.
 
-### Provision Apigee environment
+### Provision resources
+
+The included Terraform template in this lab can easily provision all resources in an empty Google Cloud project with reasonable defaults (default network, Apigee evaluation, Model Garden, Load Balancer & Certificates, etc..).
+
+If you want to adjust the defaults, you can add these variables to the `apply` command below: ` --var "drz_location=$APIGEE_DRZ_LOCATION" --var "apigee_type=$APIGEE_TYPE" --var "network=$APIGEE_VPC_NAME" --var "subnet=$APIGEE_SUBNET_NAME"`.
 
 ```sh
-cd tf/provision
+cd tf/apigee
 terraform init
 terraform apply -var "project_id=$GOOGLE_CLOUD_PROJECT" -var "region=$GOOGLE_CLOUD_LOCATION" --var "apigee_type=$APIGEE_TYPE"
 cd ../..
 ```
 
-If you want to provision in your own network or with DRZ enabled, add any of these variables on the command line: ` --var "drz_location=$APIGEE_DRZ_LOCATION" --var "apigee_type=$APIGEE_TYPE" --var "network=$APIGEE_VPC_NAME" --var "subnet=$APIGEE_SUBNET_NAME"`.
+Provisioning takes around 20-30 minutes for Apigee, Model Garden, Load Balancer, Network Services, etc... to be deployed.
 
-Provisioning takes around 20-30 minutes for Apigee, API Hub, a Global Load Balancer, Certificates, etc.. to be completed.
+---
 
-### Save Apigee environment information
+## Initialize environment
 
-After it's finished, or if you have your own Apigee instance, let's install [apigeecli](https://github.com/apigee/apigeecli) and save some basic information into environment variables.
+After provisioning is finished, let's initialize some Apigee environment variables and create the analytics data collectors for AI proxies.
 
-```sh
-curl -L https://raw.githubusercontent.com/apigee/apigeecli/main/downloadLatest.sh | sh -
-
-APIGEE_ENVIRONMENT=$(apigeecli environments list -o $GOOGLE_CLOUD_PROJECT --default-token | jq --raw-output '.[0]')
-echo "Your Apigee environment is: $APIGEE_ENVIRONMENT"
-APIGEE_HOST=$(apigeecli envgroups list -o $GOOGLE_CLOUD_PROJECT --default-token | jq --raw-output '.environmentGroups[0].hostnames[-1]')
-echo "Your Apigee host is: $APIGEE_HOST"
-```
-
-### Create analytics data collectors
-
-In Apigee we can flexibly define which analytics data properties we want to collect from the runtime traffic, so lets create several for our AI proxies.
+Take a look at the <walkthrough-editor-open-file filePath="script_initialize.sh">script_initialize.sh</walkthrough-editor-open-file> file to see the commands that are run.
 
 ```sh
-apigeecli datacollectors create -d "Model name" -n dc_ai_model -p STRING --org "$GOOGLE_CLOUD_PROJECT" --default-token
-apigeecli datacollectors create -d "Model cost center" -n dc_ai_cost_center -p STRING --org "$GOOGLE_CLOUD_PROJECT" --default-token
-apigeecli datacollectors create -d "Total token count" -n dc_ai_total_token_count -p INTEGER --org "$GOOGLE_CLOUD_PROJECT" --default-token
-apigeecli datacollectors create -d "Prompt token count" -n dc_ai_prompt_token_count -p INTEGER --org "$GOOGLE_CLOUD_PROJECT" --default-token
-apigeecli datacollectors create -d "Total token count" -n dc_ai_response_token_count -p INTEGER --org "$GOOGLE_CLOUD_PROJECT" --default-token
-apigeecli datacollectors create -d "Model response type" -n dc_ai_response_type -p STRING --org "$GOOGLE_CLOUD_PROJECT" --default-token
-apigeecli datacollectors create -d "Time to first token" -n dc_ai_time_first_token -p INTEGER --org "$GOOGLE_CLOUD_PROJECT" --default-token
-```
-
-### Create AI service account
-
-Let's also enable the Agent Platform in Google Cloud, and create a service account user, as well as assign our user as token creator.
-
-```sh
-gcloud services enable aiplatform.googleapis.com --project $GOOGLE_CLOUD_PROJECT
-
-gcloud iam service-accounts create "ai-service" --project="$GOOGLE_CLOUD_PROJECT" \
-    --description="AI service account" \
-    --display-name="API Service Account"
-gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
-    --member="serviceAccount:ai-service@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com" \
-    --role="roles/aiplatform.user"
-
-gcloud iam service-accounts add-iam-policy-binding \
-  ai-service@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --member="user:$(gcloud config get-value account 2>/dev/null)" \
-  --role="roles/iam.serviceAccountTokenCreator" --project $GOOGLE_CLOUD_PROJECT
-
-PROJECT_NUMBER=$(gcloud projects describe $GOOGLE_CLOUD_PROJECT --format="value(projectNumber)")
-gcloud iam service-accounts add-iam-policy-binding \
-  ai-service@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
-  --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-apigee.iam.gserviceaccount.com" \
-  --role="roles/iam.serviceAccountTokenCreator" --project $GOOGLE_CLOUD_PROJECT
+source script_initialize.sh
 ```
 
 ---
@@ -150,58 +124,19 @@ You should get a response with an answer candidate with some text about 'Rayleig
 
 ---
 
-## Deploy Gemini & Analytics Proxy
+## Deploy Gemini Proxy
 
-Now let's install the tool [Apigee Feature Templater](https://github.com/apigee/apigee-templater), which makes it simple to create and deploy templated proxies.
-
-```sh
-npm i apigee-templater -g
-```
-
-Open the Apigee proxy template file <walkthrough-editor-open-file filePath="AI-Gemini.yaml">AI-Gemini.yaml</walkthrough-editor-open-file> to see how the template is structured.
-
-It references a feature called <walkthrough-editor-open-file filePath="AI-Proxy-AgentPlatform.yaml">AI-Proxy-AgentPlatform.yaml</walkthrough-editor-open-file>, which has the proxy configuration to Agent Platform, but only allowing Gemini models through the **AllowedModelPatterns** property.
-
-### Deploy Model Proxy Template
+Create a simple **AI-Gemini** proxy using the `aft` command with a base path of **/gemini** and deploying it to a proxy called **AI-Gemini** in your Apigee environment.
 
 ```sh
-aft -i AI-Gemini.yaml -o $GOOGLE_CLOUD_PROJECT:AI-Gemini:$APIGEE_ENVIRONMENT:ai-service@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com
+aft -b /gemini -u https://aiplatform.googleapis.com -o $GOOGLE_CLOUD_PROJECT:AI-Gemini:$APIGEE_ENVIRONMENT
 ```
 
-### Deploy Analytics Proxy Template
+Open the proxy in the [Google Cloud Console](https://console.cloud.google.com/apigee/proxies/AI-Gemini/overview), and wait until the deployment is complete (you should see a gree ✅ next to the deployment).
 
-Let's deploy an extra analytics proxy that will be used to collect and save all token analytics data, from any model and proxy.
+After the deployment is complete, click on the **Debug** tab in the proxy screen, and start a debug session.
 
-```sh
-aft -i AI-Analytics.yaml -o $GOOGLE_CLOUD_PROJECT:AI-Analytics:$APIGEE_ENVIRONMENT
-```
-
-Now open both deployed proxies in the [Apigee console](https://console.cloud.google.com/apigee/proxies) and take a look at the configuration there.
-
----
-## Configure a Product to access Gemini
-
-Import a [product definition](https://docs.cloud.google.com/apigee/docs/api-platform/publish/what-api-product) to manage authorization & access to models and token quotas.
-
-```sh
-apigeecli products import -o $GOOGLE_CLOUD_PROJECT -f AI-Gemini-Product.json --default-token
-```
-
-Open the product definition in the [Apigee console](https://console.cloud.google.com/apigee/apiproducts) and take a look at the configuration. Notice how there is a token quota on **gemini-flash-latest**.
-
-Go to the **Developers** and **Apps** pages. Register a developer and an app, and get a **Credential Key** that can be used to access the proxy endpoint.
-
-Save the key in an environment variable.
-
-```sh
-API_KEY=YOUR_KEY
-```
-
----
-
-## Call the Gemini proxy
-
-Call the Gemini proxy endpoint with the same prompt as before. Notice the **/gemini** in the path below, which routes the traffic through our proxy.
+Let's now call the proxy URL with our same prompt, but this time see the request processing through our proxy in Apigee. Notice the **$APIGEE_HOST** parameter in the URL, which points the request to our Apigee endpoint.
 
 ```sh
 curl -i -X POST "https://$APIGEE_HOST/gemini/v1/projects/$GOOGLE_CLOUD_PROJECT/locations/global/publishers/google/models/gemini-flash-latest:generateContent" \
@@ -210,9 +145,38 @@ curl -i -X POST "https://$APIGEE_HOST/gemini/v1/projects/$GOOGLE_CLOUD_PROJECT/l
 -d '{"contents": [{"role": "USER", "parts": [{"text": "why is the sky blue?"}]}]}'
 ```
 
-You should get a **401** unauthorized response. Now let's add our API key, and remove the Google Cloud credentials.
+You should get a similar response again about 'Rayleigh scattering'. 
 
-Run the same call with our API key:
+Go back to the Debug panel, and see the processing steps, timings and variables that were done between the request and response.
+
+---
+
+## Add Model Authorization, Governance & Analytics Features
+
+Now we will update the proxy for **Gemini**, and also add a new one for **Claude**, with a template that applies model authorization & governance.
+
+Open the template file <walkthrough-editor-open-file filePath="AI-Proxy-Gemini.yaml">AI-Proxy-Gemini.yaml</walkthrough-editor-open-file> to see how a proxy template is structured, including the parameters (where we are setting a base path of **/gemini** and a model filter to only allow **gemini** models).
+
+```sh
+aft AI-Proxy-Gemini.yaml -o $GOOGLE_CLOUD_PROJECT:AI-Gemini:$APIGEE_ENVIRONMENT:ai-service@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com
+aft AI-Proxy-Claude.yaml -o $GOOGLE_CLOUD_PROJECT:AI-Claude:$APIGEE_ENVIRONMENT:ai-service@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com
+
+aft -i AI-Analytics.yaml -o $GOOGLE_CLOUD_PROJECT:AI-Analytics:$APIGEE_ENVIRONMENT
+```
+
+Create a product & subscription to the **AI-Gemini** proxy.
+
+Take a look at the <walkthrough-editor-open-file filePath="script_register_key.sh">script_register_key.sh</walkthrough-editor-open-file> file to see the commands that are run.
+
+```sh
+source script_register_key.sh
+```
+
+---
+
+## Test Model Proxy Authorization & Failover
+
+Now let's call our model proxy with an API key as credential, that has subscribed to the **AI-Gemini** product with certain LLM token quotas.
 
 ```sh
 curl -i -X POST "https://$APIGEE_HOST/gemini/v1/projects/$GOOGLE_CLOUD_PROJECT/locations/global/publishers/google/models/gemini-flash-latest:generateContent" \
@@ -221,7 +185,9 @@ curl -i -X POST "https://$APIGEE_HOST/gemini/v1/projects/$GOOGLE_CLOUD_PROJECT/l
 -d '{"contents": [{"role": "USER", "parts": [{"text": "why is the sky blue?"}]}]}'
 ```
 
-You should get again the response with **bold**
+## View Analytics Data
+
+TODO
 
 ---
 
