@@ -545,6 +545,7 @@
       let currentData = null; // now a map of email -> {app: [], model: [], product: []}
       let currentTab = "app";
       let charts = {};
+      let eventSource = null;
 
       // DOM Elements
       const projectInput = document.getElementById("projectInput");
@@ -602,10 +603,10 @@
         const urlProject = urlParams.get("project");
         if (isDemoMode) {
           projectInput.value = urlProject || "demo-project-123";
-          await fetchData();
+          await fetchMockData();
         } else if (urlProject) {
           projectInput.value = urlProject;
-          await fetchData();
+          connectSSE(urlProject);
         } else {
           try {
             const res = await fetch("/api/config");
@@ -620,44 +621,98 @@
           } catch (e) {
             console.error("Could not load configuration:", e);
           }
-          await fetchData();
+          if (projectInput.value) {
+            connectSSE(projectInput.value);
+          }
         }
       }
 
-      async function fetchData() {
+      async function fetchMockData() {
         errorMsg.style.display = "none";
         loadingModal.style.display = "flex";
-
         try {
-          let data;
-          if (isDemoMode) {
-            const res = await fetch("mock-analytics.json");
-            // mock data might not be keyed by user email if old, but we can assume new format if needed or wrap it
-            let rawData = await res.json();
-            // If rawData doesn't have our standard subkeys, assume it's the old format and wrap it in a mock user
-            if (rawData.app && Array.isArray(rawData.app)) {
-              data = { "demo-user@example.com": rawData };
-            } else {
-              data = rawData;
-            }
+          const res = await fetch("/mock-analytics.json");
+          let rawData = await res.json();
+          if (rawData.app && Array.isArray(rawData.app)) {
+            currentData = { "demo-user@example.com": rawData };
           } else {
-            const projectId = projectInput.value;
-            if (!projectId) throw new Error("Project ID is required");
-
-            const res = await fetch(
-              `/api/projects/${encodeURIComponent(projectId)}/users/analytics`,
-            );
-            if (!res.ok) throw new Error("Failed to fetch analytics data");
-            data = await res.json();
+            currentData = rawData;
           }
-          currentData = data;
           updateUserFilterOptions();
           updateView();
         } catch (err) {
-          showError(err.message);
+          showError("Failed to fetch mock data: " + err.message);
         } finally {
           loadingModal.style.display = "none";
-          dashboardContent.style.opacity = "1";
+        }
+      }
+
+      function connectSSE(projectId) {
+        if (!projectId) {
+          showError("Project ID is required");
+          return;
+        }
+
+        if (eventSource) {
+          eventSource.close();
+        }
+
+        errorMsg.style.display = "none";
+        loadingModal.style.display = "flex";
+
+        const url = `/api/projects/${encodeURIComponent(projectId)}/users/analytics/stream`;
+        eventSource = new EventSource(url);
+
+        eventSource.onmessage = function (event) {
+          try {
+            const data = JSON.parse(event.data);
+            if (Object.keys(data).length > 0) {
+              currentData = data;
+              updateUserFilterOptions();
+              updateView();
+              loadingModal.style.display = "none";
+            }
+          } catch (err) {
+            console.error("Failed to parse SSE data", err);
+          }
+        };
+
+        eventSource.onerror = function (err) {
+          console.error("SSE Error:", err);
+          if (!currentData) {
+            loadingModal.style.display = "none";
+            showError("Failed to connect to analytics stream.");
+            eventSource.close();
+          }
+        };
+      }
+
+      async function triggerRefresh() {
+        if (isDemoMode) {
+          fetchMockData();
+          return;
+        }
+
+        const projectId = projectInput.value;
+        if (!projectId) {
+          showError("Project ID is required");
+          return;
+        }
+
+        if (!eventSource || !eventSource.url.includes(encodeURIComponent(projectId))) {
+          connectSSE(projectId);
+        }
+
+        try {
+          loadingModal.style.display = "flex";
+          await fetch(`/api/projects/${encodeURIComponent(projectId)}/users/analytics`);
+          // Fallback timeout in case the SSE push happens faster than the UI renders, or data didn't change
+          setTimeout(() => {
+            loadingModal.style.display = "none";
+          }, 1500);
+        } catch (e) {
+          showError("Failed to trigger refresh.");
+          loadingModal.style.display = "none";
         }
       }
 
@@ -1043,11 +1098,11 @@
       }
 
       // Event Listeners
-      refreshBtn.addEventListener("click", fetchData);
+      refreshBtn.addEventListener("click", triggerRefresh);
       projectInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          fetchData();
+          triggerRefresh();
         }
       });
       userFilter.addEventListener("change", updateView);
