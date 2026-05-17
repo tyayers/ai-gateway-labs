@@ -137,7 +137,7 @@ func fetchAnalyticsForEmail(ctx context.Context, projectId, env, escapedTimeRang
 	}
 
 	// 3. Stats by dc_ai_model
-	modelStatsUrl := fmt.Sprintf("https://apigee.googleapis.com/v1/organizations/%s/environments/%s/stats/dc_ai_model?select=sum(dc_ai_prompt_token_count),sum(dc_ai_response_token_count),avg(dc_ai_time_first_token)&timeUnit=day&timeRange=%s&filter=%s",
+	modelStatsUrl := fmt.Sprintf("https://apigee.googleapis.com/v1/organizations/%s/environments/%s/stats/dc_ai_model?select=sum(message_count),sum(dc_ai_prompt_token_count),sum(dc_ai_response_token_count),avg(dc_ai_time_first_token)&timeUnit=day&timeRange=%s&filter=%s",
 		projectId, env, escapedTimeRange, escapedFilter)
 	var modelStatsResp map[string]interface{}
 	if err := doApigeeRequest(ctx, "GET", modelStatsUrl, nil, &modelStatsResp); err == nil {
@@ -332,7 +332,6 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-
 	mux := http.NewServeMux()
 
 	landingFs := http.FileServer(http.Dir("public"))
