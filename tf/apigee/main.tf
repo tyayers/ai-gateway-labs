@@ -32,11 +32,6 @@ variable "apigee_type" {
   description = "The Apigee billing type, either EVALUATION, PAYG or SUBSCRIPTION."
   type        = string
   default     = "EVALUATION"
-
-  validation {
-    condition     = !((var.drz_location != null && var.drz_location != "") && var.apigee_type == "EVALUATION")
-    error_message = "Apigee EVALUATION type cannot be used when a DRZ location (drz_location) is specified. Please use PAYG or SUBSCRIPTION instead."
-  }
 }
 
 locals {
@@ -125,6 +120,10 @@ resource "google_apigee_organization" "apigee_org" {
   billing_type               = var.apigee_type
   depends_on                 = [google_project_service.enabled_apis]
   lifecycle {
+    precondition {
+      condition     = !((var.drz_location != null && var.drz_location != "") && var.apigee_type == "EVALUATION")
+      error_message = "Apigee EVALUATION type cannot be used when a DRZ location (drz_location) is specified. Please use PAYG or SUBSCRIPTION instead."
+    }
     ignore_changes = [analytics_region]
   }
 }
