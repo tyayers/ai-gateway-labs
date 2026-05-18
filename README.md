@@ -27,6 +27,6 @@ In this lab you will:
 * Use the AI Gateway as proxy in [Gemini CLI](https://geminicli.com/) and [Claude Code](https://claude.com/product/claude-code) for local CLI usage.
 * View analytics usage of each model, for example counts of **prompt tokens**, **response tokens**, **time-to-first-token**, **latency**, etc...
 
-[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.png)](https://ssh.cloud.google.com/cloudshell/open?cloudshell_git_repo=https://github.com/tyayers/apigee-aigateway-lab&cloudshell_git_branch=main&cloudshell_workspace=.&cloudshell_tutorial=TUTORIAL.md)
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.png)](https://ssh.cloud.google.com/cloudshell/open?cloudshell_git_repo=https://github.com/tyayers/apigee-aigateway-lab&cloudshell_git_branch=main&cloudshell_workspace=.&cloudshell_tutorial=public/TUTORIAL.md)
 
-Direct [markdown](https://github.com/tyayers/ai-gateway-labs/blob/main/TUTORIAL.md) link.
+Direct [markdown](https://github.com/tyayers/ai-gateway-labs/blob/main/public/TUTORIAL.md) link.
